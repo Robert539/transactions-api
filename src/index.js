@@ -8,20 +8,36 @@ app.use(express.json());
 
 const transactions = [];
 
+function logRequest(request, response, next) {
+  const { method, url } = request;
+
+  const logLabel = `[${method.toUpperCase()}] ${url}`;
+
+  console.time(logLabel);
+
+  next();
+
+  console.timeEnd(logLabel);
+}
+
 function validateTransactionId(request, response, next) {
   const { id } = request.params;
+
   if (!isUuid(id)) {
     return response
       .status(400)
       .json({ error: `Param sent is not a valid UUID` });
   }
+
   next();
 }
+
+app.use(logRequest);
 
 //Metodo de listar transações
 
 app.get("/transactions", (request, response) => {
-  const { title } = request.body;
+  const { title } = request.query;
 
   const results = title
     ? transactions.filter((transaction) => transaction.include(title))
@@ -30,10 +46,23 @@ app.get("/transactions", (request, response) => {
   return response.status(200).json(results);
 });
 
+//Metodo de criar transações
+
+app.post("/transactions", (request, response) => {
+  const { title, value, type } = request.body;
+
+  const transaction = { id: uuid(), title, value, type };
+
+  transactions.push(transaction);
+
+  return response.status(201).json(transaction);
+});
+
 //Metodo de atualizar transações
 
-app.put("/transactions/:id", (request, response) => {
+app.put("/transactions/:id", validateTransactionId, (request, response) => {
   const { id } = request.params;
+
   const { title, value, type } = request.body;
 
   const transactionIndex = transactions.findIndex(
@@ -41,7 +70,7 @@ app.put("/transactions/:id", (request, response) => {
   );
 
   if (transactionIndex < 0) {
-    return response.status(404).json({ error: "Transaction not found." });
+    return response.status(404).json({ error: "transaction not found." });
   }
 
   const transaction = {
@@ -56,19 +85,9 @@ app.put("/transactions/:id", (request, response) => {
   return response.status(202).json(transaction);
 });
 
-//Metodo de criar transações
-
-app.post("/transactions", (request, response) => {
-  const { title, value, type } = request.body;
-
-  const transaction = { id: uuid(), title, value, type };
-
-  transactions.push(transaction);
-});
-
 //Metodo de delete transações
 
-app.delete("/transactions/:id", (request, response) => {
+app.delete("/transactions/:id", validateTransactionId, (request, response) => {
   const { id } = request.params;
 
   const transactionIndex = transactions.findIndex(
