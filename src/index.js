@@ -8,6 +8,16 @@ app.use(express.json());
 
 const transactions = [];
 
+function validateTransactionId(request, response, next) {
+  const { id } = request.params;
+  if (!isUuid(id)) {
+    return response
+      .status(400)
+      .json({ error: `Param sent is not a valid UUID` });
+  }
+  next();
+}
+
 //Metodo de listar transações
 
 app.get("/transactions", (request, response) => {
@@ -22,7 +32,7 @@ app.get("/transactions", (request, response) => {
 
 //Metodo de atualizar transações
 
-app.put("/transactions/:id", validateScrapId, (request, response) => {
+app.put("/transactions/:id", (request, response) => {
   const { id } = request.params;
   const { title, value, type } = request.body;
 
