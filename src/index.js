@@ -6,7 +6,33 @@ const app = express();
 
 app.use(express.json());
 
-const transactions = [];
+const baseTransacoes = {
+  transactions: [
+    {
+      id: "uuid",
+      title: "Salário",
+      value: 4000,
+      type: "income",
+    },
+    {
+      id: "uuid",
+      title: "Freela",
+      value: 2000,
+      type: "income",
+    },
+    {
+      id: "uuid",
+      title: "Pagamento da fatura",
+      value: 4000,
+      type: "outcome",
+    },
+  ],
+  balance: {
+    income: 0,
+    outcome: 0,
+    total: 0,
+  },
+};
 
 function logRequest(request, response, next) {
   const { method, url } = request;
@@ -32,58 +58,101 @@ function validateTransactionId(request, response, next) {
   next();
 }
 
+function validateContents(request, response, next) {
+  const { title, value, type } = request.body;
+
+  if (!title) {
+    return response.status(400).json({ error: `Título não informado` });
+  } else if (!value) {
+    return response.status(400).json({ error: `Valor não informado` });
+  } else if (!type) {
+    return response.status(400).json({ error: `Tipo não informado` });
+  }
+  next();
+}
+
+function createBalance(objetoPassado) {
+  objetoPassado.balance.income = 0;
+  objetoPassado.balance.outcome = 0;
+  objetoPassado.balance.total = 0;
+
+  const entradas = objetoPassado.transactions.reduce(
+    (acl, vlrAt) => (vlrAt.type === "income" ? acl + vlrAt.value : acl),
+    0
+  );
+  objetoPassado.balance.income = entradas;
+
+  const saidas = objetoPassado.transactions.reduce(
+    (acl, vlrAt) => (vlrAt.type === "outcome" ? acl + vlrAt.value : acl),
+    0
+  );
+  objetoPassado.balance.outcome = saidas;
+
+  const total = entradas - saidas;
+  objetoPassado.balance.total = total;
+}
+
 app.use(logRequest);
 
 //Metodo de listar transações
 
 app.get("/transactions", (request, response) => {
-  const { title } = request.query;
+  const { title, value } = request.query;
+
+  const importTransacoes = baseTransacoes.transactions;
+
+  createBalance(baseTransacoes);
 
   const results = title
-    ? transactions.filter((transaction) => transaction.include(title))
-    : transactions;
+    ? importTransacoes.filter((transaction) => transaction.include(title))
+    : importTransacoes;
 
-  return response.status(200).json(results);
+  return response.status(200).json(baseTransacoes);
 });
 
 //Metodo de criar transações
 
-app.post("/transactions", (request, response) => {
+app.post("/transactions", validateContents, (request, response) => {
   const { title, value, type } = request.body;
 
   const transaction = { id: uuid(), title, value, type };
 
-  transactions.push(transaction);
+  transaction.push(transaction);
 
   return response.status(201).json(transaction);
 });
 
 //Metodo de atualizar transações
 
-app.put("/transactions/:id", validateTransactionId, (request, response) => {
-  const { id } = request.params;
+app.put(
+  "/transactions/:id",
+  validateTransactionId,
+  validateContents,
+  (request, response) => {
+    const { id } = request.params;
 
-  const { title, value, type } = request.body;
+    const { title, value, type } = request.body;
 
-  const transactionIndex = transactions.findIndex(
-    (transaction) => transaction.id == id
-  );
+    const transactionIndex = transactions.findIndex(
+      (transaction) => transaction.id == id
+    );
 
-  if (transactionIndex < 0) {
-    return response.status(404).json({ error: "transaction not found." });
+    if (transactionIndex < 0) {
+      return response.status(404).json({ error: "transaction not found." });
+    }
+
+    const transaction = {
+      id,
+      title,
+      value,
+      type,
+    };
+
+    transactions[transactionIndex] = transaction;
+
+    return response.status(202).json(transaction);
   }
-
-  const transaction = {
-    id,
-    title,
-    value,
-    type,
-  };
-
-  transactions[transactionIndex] = transaction;
-
-  return response.status(202).json(transaction);
-});
+);
 
 //Metodo de delete transações
 
